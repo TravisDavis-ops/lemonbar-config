@@ -10,11 +10,11 @@ from subprocess import check_output
 
 
 # PARAMETERS
-SPACING_RIGHT = 3 
-SPACING_LEFT = 3 
+SPACING_RIGHT = 3
+SPACING_LEFT = 3
 
-RIGHT_MARGIN = ' '*4
-LEFT_MARGIN = ' '*4
+RIGHT_MARGIN = ' ' * 4
+LEFT_MARGIN = ' ' * 4
 
 
 ################################################################################
@@ -131,7 +131,11 @@ def brightness():
 def current_window():
     id = call('xprop -root _NET_ACTIVE_WINDOW').split(' ')[-1]
 
-    content = call('xprop -id {}'.format(id)).split('\n')
+    try:
+        content = call('xprop -id {}'.format(id)).split('\n')
+
+    except subprocess.CalledProcessError:
+        return ''
 
     name = next(entry for entry in content if 'WM_NAME(UTF8_STRING)' in entry)
     name = name.split('=')[-1][2:-1]
