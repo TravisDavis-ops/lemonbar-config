@@ -3,25 +3,25 @@
 
 # imports
 import time
-import sys
 import subprocess
 import json
 from subprocess import check_output
+from functools import reduce
 
 
 # PARAMETERS
 SPACING_RIGHT = 3
 SPACING_LEFT = 3
 
-RIGHT_MARGIN = ' ' * 4
-LEFT_MARGIN = ' ' * 4
+RIGHT_MARGIN = ' ' * 10
+LEFT_MARGIN = ' ' * 10
 
 
-################################################################################
+###############################################################################
 #
 # Functions for getting stats
 #
-################################################################################
+###############################################################################
 
 # helper function
 def call(cmd):
@@ -29,7 +29,7 @@ def call(cmd):
 
 
 def clock():
-    return time.strftime('%a %b %d, %T')
+    return time.strftime('%a %d %b, %Y | %T')
 
 
 def battery():
@@ -56,8 +56,8 @@ def battery():
 
 
 def audio():
-    audio_str = call('amixer get Master').split()
-    mute = True if audio_str[-1] == '[off]' else False
+    audio_str = call('amixer get Master').split('\n')
+    mute = True if audio_str[-2].split()[-1] == '[off]' else False
 
     # get if audio jack is plugged or not
     amixer = subprocess.Popen('amixer -c 0 contents'.split(),
@@ -70,7 +70,7 @@ def audio():
 
     headphone = '\uf025 ' if plugged == 'on' else ''
 
-    level = int(audio_str[-3][1:-2])
+    level = int(audio_str[-2].split()[-2][1:-2])
 
     if mute:
         symbol = '\uf026'
@@ -104,20 +104,24 @@ def ram():
 
 
 def cpu():
-    cpu_stats = call('mpstat').split('\n')[-2].split()
+    cpu_stats = call('./get_cpu.sh').split('\n')[:-1]
 
-    user = float(cpu_stats[3])
-    nice = float(cpu_stats[4])
-    system = float(cpu_stats[5])
+    vec = [int(elem) for elem in cpu_stats]
 
-    return '\uf085 {:.2f}%'.format(user + nice + system)
+    utilization = reduce(lambda a, b: a + b, vec, 0) / len(vec)
+
+    return '\uf085 {:05.2f}%'.format(utilization)
 
 
 def network():
-    net_str = call('iwgetid -r')
+    try:
+        net_str = call('iwgetid -r')
+
+    except subprocess.CalledProcessError:
+        net_str = ''
 
     disp = '\uf1eb'
-    disp += ' Connected' if not net_str == '' else 'Disconnected'
+    disp += ' Connected' if not net_str == '' else ' Disconnected'
 
     return disp
 
@@ -129,18 +133,24 @@ def brightness():
 
 
 def current_window():
-    id = call('xprop -root _NET_ACTIVE_WINDOW').split(' ')[-1]
+    try:
+        id = call('xprop -root _NET_ACTIVE_WINDOW').split(' ')[-1]
+    except subprocess.CalledProcessError:
+        return ''
 
     try:
         content = call('xprop -id {}'.format(id)).split('\n')
-
     except subprocess.CalledProcessError:
         return ''
 
     name = next(entry for entry in content if 'WM_NAME(UTF8_STRING)' in entry)
     name = name.split('=')[-1][2:-1]
 
-    return name 
+    return '{:.80s}'.format(name)
+
+
+def audio_vis():
+    return '%{A:vis_toggle:}| \uf080 Visualizer |%{A}'
 
 
 def create_right(*args):
@@ -161,28 +171,28 @@ def create_left(*args):
     return left_str.format(*args)
 
 
-################################################################################
+###############################################################################
 #
 # Main function
 #
-################################################################################
+###############################################################################
 
 def main():
     dispStr = '%{{l}}{}{}'.format(LEFT_MARGIN, create_left(clock(),
                                                            current_window()))
 
     dispStr += '%{{c}}{}'.format(workspaces())
-    dispStr += '%{{r}}{}{}'.format(create_right(network(),
+    dispStr += '%{{r}}{}{}'.format(create_right(audio_vis(),
+                                                network(),
                                                 cpu(),
                                                 ram(),
                                                 brightness(),
                                                 audio(),
                                                 battery()),
-                                 RIGHT_MARGIN)
+                                   RIGHT_MARGIN)
 
     print(dispStr)
 
 
 if __name__ == '__main__':
     main()
-
